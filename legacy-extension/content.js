@@ -1,5 +1,5 @@
-// content.js  v3.4.1 (共通スキーマ対応版 + 住所/原文ノイズ除去修正)
-// v3.3.1ベース + 共通スキーマ出力、厳格エリアフィルタ、営業時間原文・複数枠対応、HP有無
+// content.js  v3.4.2 (共通スキーマ対応版 + 住所/原文ノイズ除去 + HP高精度判定)
+// v3.3.1ベース + 共通スキーマ出力、厳格エリアフィルタ、営業時間原文・複数枠対応、HP高精度フィルタ
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
@@ -91,7 +91,7 @@ function isEndOfList(container) {
 }
 
 // =====================================================================
-// 営業時間パース (【改修】複数枠 A/B 対応)
+// 営業時間パース (複数枠 A/B 対応)
 // =====================================================================
 const WEEKDAY_IDX = { '月': 0, '火': 1, '水': 2, '木': 3, '金': 4, '土': 5, '日': 6 };
 const IDX_TO_DAY = ['月', '火', '水', '木', '金', '土', '日'];
@@ -290,7 +290,7 @@ function extractRawGenreFromPanel() {
 }
 
 // =====================================================================
-// 詳細パネルスクレイピング (【改修】原文保持・HP有無)
+// 詳細パネルスクレイピング (【改修】原文保持・高精度HP判定)
 // =====================================================================
 async function scrapeDetailPanel(placeUrl, cardName = '') {
   if (cardName) {
@@ -333,10 +333,33 @@ async function scrapeDetailPanel(placeUrl, cardName = '') {
     phone = itemId.replace('phone:tel:', '').trim() || phoneBtn.textContent.trim();
   }
   
-  // 【新規】HP(公式ウェブサイト)の有無
+  // 【改修】HP(公式ウェブサイト)の高精度判定判定（ポータル・SNSは除外）
   let hasWebsite = '無';
-  if (document.querySelector('a[data-item-id="authority"]')) {
-    hasWebsite = '有';
+  const hpLinkEl = document.querySelector('a[data-item-id="authority"]');
+  if (hpLinkEl) {
+    const hpUrl = (hpLinkEl.getAttribute('href') || '').toLowerCase();
+    
+    // 独自ホームページではない主要ポータルサイト・SNSのドメインブラックリスト
+    const portalDomains = [
+      'tabelog.com',
+      'hotpepper.jp',
+      'gorp.jp',
+      'gnavi.co.jp',
+      'retty.me',
+      'favy.jp',
+      'favy.me',
+      'facebook.com',
+      'instagram.com',
+      'twitter.com',
+      'x.com',
+      'ameblo.jp'
+    ];
+    
+    // ブラックリストに部分一致するか確認
+    const isPortal = portalDomains.some(domain => hpUrl.includes(domain));
+    if (!isPortal && hpUrl.trim() !== '') {
+      hasWebsite = '有';
+    }
   }
 
   if (hoursToggle) {
@@ -348,7 +371,7 @@ async function scrapeDetailPanel(placeUrl, cardName = '') {
     .map(tr => tr.textContent.trim())
     .filter(t => /^[月火水木金土日]曜日/.test(t));
   
-  // 【修正】営業時間原文を改行保持で作成し、Google特有のアイコン文字(など)を除去
+  // 営業時間原文を改行保持で作成し、Google特有のアイコン文字(など)を除去
   const rawHours = rawHourRows.join('\n').replace(//g, '').trim();
 
   // パース用にはスペースを除去したものを渡す
@@ -483,7 +506,7 @@ function matchesTargetGenres(detail, targetGenres) {
 }
 
 // =====================================================================
-// 【改修】厳格なエリアフィルタ照合
+// 厳格なエリアフィルタ照合
 // 検索条件で指定された市区町村以外は除外する。
 // =====================================================================
 function matchesSearchArea(detail, searchArea) {
@@ -510,7 +533,7 @@ function matchesSearchArea(detail, searchArea) {
 }
 
 // =====================================================================
-// スクレイピング実行 (【改修】共通スキーマ出力)
+// スクレイピング実行 (共通スキーマ出力)
 // =====================================================================
 async function startScraping(maxItems, targetGenres = [], searchArea = '') {
   isScrapingActive = true;
@@ -615,7 +638,6 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
           continue;
         }
 
-        // 【改修】共通スキーマに基づきレコードを作成
         const parsedAddr = parseAddress(detail.address);
         
         const record = {
@@ -638,8 +660,8 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
           source: 'GoogleMap',
           sourceUrl: searchPageUrl,
           scrapedAt: new Date().toISOString(),
-          searchGenre, // バックグラウンド管理用
-          searchKey    // バックグラウンド管理用
+          searchGenre, 
+          searchKey    
         };
 
         totalProcessed++;
