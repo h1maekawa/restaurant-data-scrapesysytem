@@ -66,17 +66,29 @@ let searchPageUrl = '';
 async function closeDetailPanel() {
   if (!isDetailPanelOpen()) return true;
 
-  if (searchPageUrl) {
-    window.location.href = searchPageUrl;
-  } else {
-    window.history.back();
+  const backButton = Array.from(document.querySelectorAll('button[aria-label], a[aria-label]'))
+    .find(el => /戻る|Back/i.test(el.getAttribute('aria-label') || ''));
+  if (backButton) {
+    backButton.click();
+    const listReady = await waitForListPanel(5000);
+    if (listReady && getScrollContainer()) return true;
   }
 
-  const start = Date.now();
-  while (Date.now() - start < 5000) {
-    if (!isDetailPanelOpen() && getScrollContainer()) return true;
-    await sleep(200);
+  try {
+    window.history.back();
+    const listReady = await waitForListPanel(5000);
+    if (listReady && getScrollContainer()) return true;
+  } catch (_) { /* ignore */ }
+
+  if (searchPageUrl) {
+    window.location.href = searchPageUrl;
+    const start = Date.now();
+    while (Date.now() - start < 7000) {
+      if (!isDetailPanelOpen() && getScrollContainer()) return true;
+      await sleep(200);
+    }
   }
+
   return false;
 }
 
@@ -414,6 +426,35 @@ function getScrollContainer() {
   return null;
 }
 
+function getResultLinks(container) {
+  return Array.from((container || document).querySelectorAll('a[href*="/maps/place/"]'));
+}
+
+async function scrollResultsList(container) {
+  const target = container || getScrollContainer() || document.querySelector('[role="feed"]');
+  if (!target) return false;
+
+  const beforeTop = target.scrollTop || 0;
+  const beforeHeight = target.scrollHeight || 0;
+  const distance = Math.max(900, Math.floor((target.clientHeight || 600) * 0.85));
+
+  try {
+    target.scrollBy({ top: distance, behavior: 'smooth' });
+  } catch (_) {
+    target.scrollTop = beforeTop + distance;
+  }
+
+  target.dispatchEvent(new WheelEvent('wheel', {
+    bubbles: true,
+    cancelable: true,
+    deltaY: distance
+  }));
+  target.dispatchEvent(new Event('scroll', { bubbles: true }));
+
+  await backgroundSleep(900);
+  return (target.scrollTop || 0) !== beforeTop || (target.scrollHeight || 0) !== beforeHeight;
+}
+
 // =====================================================================
 // カード情報取得
 // =====================================================================
@@ -583,39 +624,42 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
       break;
     }
 
-    const allLinks = Array.from(container.querySelectorAll('a[href*="/maps/place/"]'));
-    const newLinks = allLinks.filter(a => {
+    const allLinks = getResultLinks(container);
+    const newItems = allLinks.filter(a => {
       const url = a.href.split('?')[0];
       return url && !processedUrls.has(url) && !failedUrls.has(url);
-    });
+    }).map(extractCardInfo);
 
-    if (!newLinks.length) {
+    if (!newItems.length) {
       noNewCount++;
       if (noNewCount >= MAX_NO_NEW) break;
-      const scrollContainer = document.querySelector('[role="feed"]');
-      if (scrollContainer) {
-        scrollContainer.scrollTop += 800;
-        scrollContainer.dispatchEvent(new Event('scroll', { bubbles: true }));
-      }
-      await backgroundSleep(600);
+      await scrollResultsList(container);
       continue;
     }
 
     noNewCount = 0;
 
-    for (const linkEl of newLinks) {
+    for (const item of newItems) {
       if (!isScrapingActive) break;
       if (processedUrls.size >= maxItems) { isScrapingActive = false; noNewCount = 0; break; }
 
-      const { url, name: cardName } = extractCardInfo(linkEl);
+      const { url, name: cardName } = item;
       if (!url || processedUrls.has(url) || failedUrls.has(url)) continue;
 
       try {
-        linkEl.click();
+        const freshContainer = getScrollContainer();
+        const freshLink = getResultLinks(freshContainer).find(a => a.href.split('?')[0] === url);
+        if (freshLink) {
+          freshLink.click();
+        } else {
+          window.location.href = url;
+        }
+
         const panelReady = await waitForDetailPanel(5000);
         if (!panelReady) {
           console.warn('[Scraper] パネルが開かなかった:', cardName || url);
           failedUrls.add(url);
+          await closeDetailPanel();
           continue;
         }
 
@@ -625,16 +669,19 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
 
         if (!detail.phone) {
           console.log('[Scraper] TELなし → スキップ:', detail.name);
+          await closeDetailPanel();
           continue;
         }
 
         if (!matchesTargetGenres(detail, targetGenres)) {
           console.log(`[Scraper] ジャンル不一致 → スキップ: ${detail.name} | ジャンル:${detail.genre}(${detail.googleGenre})`);
+          await closeDetailPanel();
           continue;
         }
 
         if (!matchesSearchArea(detail, searchArea)) {
           console.log(`[Scraper] エリア不一致 → スキップ: ${detail.name} | 住所:${detail.address} | フィルタ:${searchArea}`);
+          await closeDetailPanel();
           continue;
         }
 
@@ -682,21 +729,19 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
           });
         } catch (_) { /* ignore */ }
 
+        await closeDetailPanel();
         await sleep(300);
 
       } catch (err) {
         console.error('[Scraper] エラー:', err);
         failedUrls.add(url);
+        await closeDetailPanel();
         await sleep(500);
       }
     }
 
-    const scrollContainer = document.querySelector('[role="feed"]');
-    if (scrollContainer) {
-      scrollContainer.scrollTop += 800;
-      scrollContainer.dispatchEvent(new Event('scroll', { bubbles: true }));
-    }
-    await backgroundSleep(600);
+    container = getScrollContainer();
+    await scrollResultsList(container);
 
     if (totalProcessed > 0 && isEndOfList(container)) {
       console.log('[Scraper] リストの最後に到達 → 終了');
