@@ -4,7 +4,7 @@
 //   [FIX-1] content.js 未注入時の "Could not establish connection" エラー対策
 //           → navigateTabTo 後に content.js への ping リトライを挟み
 //             注入完了を確認してから startScraping を送信する
-//   [FIX-2] waitForComboDone にタイムアウト（10分）を追加し無限待機を防止
+//   [FIX-2] waitForComboDone に無完了タイムアウト（30分）を追加し無限待機を防止
 //   [FIX-3] v3Drive() 重複実行防止フラグ (driveRunning) を追加
 //   [FIX-4] SW 再起動後の自動再開で既存ドライブと衝突しないよう制御
 //   [SPEED-1] waitForTabComplete: DOM 完了後の固定待ち 1500ms → 800ms
@@ -199,24 +199,34 @@ async function waitForContentScript(tabId, retryMs = 12000, intervalMs = 150) {
   return false;
 }
 
-// ---- [FIX-2] waitForComboDone: タイムアウト付き ----------
-function waitForComboDone(area, genre, timeoutMs = 600000) { // 10分
+// ---- [FIX-2] waitForComboDone: 無進捗タイムアウト付き ----------
+function waitForComboDone(area, genre, tabId, timeoutMs = 1800000) { // 30分
   return new Promise(resolve => {
     let lastReportedCount = 0;
     let timedOut = false;
+    let timeoutTimer = null;
 
-    const timeoutTimer = setTimeout(async () => {
-      timedOut = true;
-      chrome.storage.onChanged.removeListener(handler);
-      await v3Log(`⚠ ${area} ${genre} タイムアウト（10分経過）`);
-      resolve([]);
-    }, timeoutMs);
+    const resetTimeout = () => {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      timeoutTimer = setTimeout(async () => {
+        timedOut = true;
+        chrome.storage.onChanged.removeListener(handler);
+        try { chrome.tabs.sendMessage(tabId, { action: 'stopScraping' }); } catch (_) { }
+        await v3Log(`⚠ ${area} ${genre} タイムアウト（30分間完了通知なし）`);
+        resolve([]);
+      }, timeoutMs);
+    };
 
     const handler = async (changes, ns) => {
       if (ns !== 'local' || timedOut) return;
 
+      if (changes.scrapingState && changes.scrapingState.newValue === 'active') {
+        resetTimeout();
+      }
+
       // 進捗通知
       if (changes.scrapedData) {
+        resetTimeout();
         const newVal = Array.isArray(changes.scrapedData.newValue) ? changes.scrapedData.newValue : [];
         if (newVal.length !== lastReportedCount) {
           lastReportedCount = newVal.length;
@@ -242,6 +252,8 @@ function waitForComboDone(area, genre, timeoutMs = 600000) { // 10分
         resolve(enriched);
       }
     };
+
+    resetTimeout();
     chrome.storage.onChanged.addListener(handler);
   });
 }
@@ -313,7 +325,7 @@ async function runCombo(area, genre) {
     }
   }
 
-  const items = await waitForComboDone(area, genre);
+  const items = await waitForComboDone(area, genre, tabId);
   return { count: items.length, items };
 }
 
@@ -381,6 +393,14 @@ async function v3Drive() {
 // ---- message handlers --------------------------------------
 chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   if (!req || !req.action) return false;
+
+  if (req.action === 'v3_contentLog') {
+    (async () => {
+      await v3Log(req.message || '');
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
 
   if (req.action === 'v3_getAreas') {
     (async () => {

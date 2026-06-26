@@ -80,13 +80,22 @@ async function closeDetailPanel() {
     if (listReady && getScrollContainer()) return true;
   } catch (_) { /* ignore */ }
 
-  if (searchPageUrl) {
-    window.location.href = searchPageUrl;
-    const start = Date.now();
-    while (Date.now() - start < 7000) {
-      if (!isDetailPanelOpen() && getScrollContainer()) return true;
-      await sleep(200);
-    }
+  try {
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      code: 'Escape',
+      keyCode: 27,
+      which: 27,
+      bubbles: true
+    }));
+    const listReady = await waitForListPanel(2000);
+    if (listReady && getScrollContainer()) return true;
+  } catch (_) { /* ignore */ }
+
+  const start = Date.now();
+  while (Date.now() - start < 3000) {
+    if (!isDetailPanelOpen() && getScrollContainer()) return true;
+    await sleep(200);
   }
 
   return false;
@@ -107,6 +116,7 @@ function isEndOfList(container) {
 // =====================================================================
 const WEEKDAY_IDX = { '月': 0, '火': 1, '水': 2, '木': 3, '金': 4, '土': 5, '日': 6 };
 const IDX_TO_DAY = ['月', '火', '水', '木', '金', '土', '日'];
+const DINNER_START_HOUR = 15;
 
 function parseOpeningHours(rows) {
   if (!rows || !rows.length) {
@@ -132,24 +142,27 @@ function parseOpeningHours(rows) {
     while ((m = re1.exec(row)) !== null) {
       let open = parseInt(m[1]), close = parseInt(m[3]);
       if (close < open) close += 24;
-      times.push({ open, close });
+      times.push({ open, close, openMinute: parseInt(m[2]), closeMinute: parseInt(m[4]) });
     }
     if (!times.length) {
       const re2 = /(\d{1,2}):(\d{2})\s*[〜～－\-]\s*(\d{1,2}):(\d{2})/g;
       while ((m = re2.exec(row)) !== null) {
         let open = parseInt(m[1]), close = parseInt(m[3]);
         if (close < open) close += 24;
-        times.push({ open, close });
+        times.push({ open, close, openMinute: parseInt(m[2]), closeMinute: parseInt(m[4]) });
       }
     }
     
     if (times.length > 0) {
+      const daytime = times.find(t => t.open < DINNER_START_HOUR);
+      const dinner = times.find(t => t.open >= DINNER_START_HOUR)
+        || times.find(t => t !== daytime);
       blocks.push({ 
         dayIdx, 
-        openA: times[0].open, 
-        closeA: times[0].close,
-        openB: times.length > 1 ? times[1].open : '',
-        closeB: times.length > 1 ? times[1].close : ''
+        openA: daytime ? daytime.open : '', 
+        closeA: daytime ? daytime.close : '',
+        openB: dinner ? dinner.open : '',
+        closeB: dinner ? dinner.close : ''
       });
     }
   }
@@ -402,28 +415,48 @@ async function scrapeDetailPanel(placeUrl, cardName = '') {
 // =====================================================================
 // コンテナ取得
 // =====================================================================
+function scoreScrollContainer(el) {
+  if (!el || el === document.body) return 0;
+  const linkCount = el.querySelectorAll('a[href*="/maps/place/"]').length;
+  if (linkCount === 0) return 0;
+
+  const rect = el.getBoundingClientRect();
+  const scrollable = Math.max(0, el.scrollHeight - el.clientHeight);
+  const style = window.getComputedStyle(el);
+  const overflowScore = /auto|scroll/.test(style.overflowY) ? 800 : 0;
+  const roleScore = el.getAttribute('role') === 'feed' ? 1200 : 0;
+  const sizeScore = rect.height > 200 ? 300 : 0;
+
+  return roleScore + overflowScore + sizeScore + scrollable + linkCount * 20;
+}
+
 function getScrollContainer() {
-  const byClass = document.querySelector('.m6QErb.ecceSd');
-  if (byClass && byClass.querySelectorAll('a[href*="/maps/place/"]').length > 0) return byClass;
-
-  const byAria = document.querySelector('.m6QErb[aria-label]');
-  if (byAria && byAria.querySelectorAll('a[href*="/maps/place/"]').length > 0) return byAria;
-
-  const byRole = document.querySelector('div[role="feed"]');
-  if (byRole && byRole.querySelectorAll('a[href*="/maps/place/"]').length > 0) return byRole;
-
   const links = Array.from(document.querySelectorAll('a[href*="/maps/place/"]'));
   if (!links.length) return null;
-  let el = links[0].parentElement;
-  while (el && el !== document.body) {
-    const count = el.querySelectorAll('a[href*="/maps/place/"]').length;
-    if (count >= Math.min(links.length, 5)) {
-      const s = window.getComputedStyle(el);
-      if (s.overflowY === 'auto' || s.overflowY === 'scroll' || el.scrollHeight > el.clientHeight + 50) return el;
+
+  const candidates = new Set([
+    ...document.querySelectorAll('div[role="feed"], .m6QErb[aria-label], .m6QErb.ecceSd')
+  ]);
+
+  for (const link of links) {
+    let el = link.parentElement;
+    while (el && el !== document.body) {
+      candidates.add(el);
+      el = el.parentElement;
     }
-    el = el.parentElement;
   }
-  return null;
+
+  let best = null;
+  let bestScore = 0;
+  for (const el of candidates) {
+    const score = scoreScrollContainer(el);
+    if (score > bestScore) {
+      best = el;
+      bestScore = score;
+    }
+  }
+
+  return best;
 }
 
 function getResultLinks(container) {
@@ -436,10 +469,12 @@ async function scrollResultsList(container) {
 
   const beforeTop = target.scrollTop || 0;
   const beforeHeight = target.scrollHeight || 0;
+  const beforeLinks = getResultLinks(target).length;
   const distance = Math.max(900, Math.floor((target.clientHeight || 600) * 0.85));
 
   try {
-    target.scrollBy({ top: distance, behavior: 'smooth' });
+    target.focus?.();
+    target.scrollBy({ top: distance, behavior: 'auto' });
   } catch (_) {
     target.scrollTop = beforeTop + distance;
   }
@@ -449,10 +484,90 @@ async function scrollResultsList(container) {
     cancelable: true,
     deltaY: distance
   }));
+  document.dispatchEvent(new WheelEvent('wheel', {
+    bubbles: true,
+    cancelable: true,
+    deltaY: distance
+  }));
+  target.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'PageDown',
+    code: 'PageDown',
+    keyCode: 34,
+    which: 34,
+    bubbles: true
+  }));
   target.dispatchEvent(new Event('scroll', { bubbles: true }));
 
-  await backgroundSleep(900);
-  return (target.scrollTop || 0) !== beforeTop || (target.scrollHeight || 0) !== beforeHeight;
+  const lastLink = getResultLinks(target).at(-1);
+  try {
+    lastLink?.scrollIntoView({ block: 'end', behavior: 'auto' });
+  } catch (_) { /* ignore */ }
+
+  await backgroundSleep(1200);
+  return (target.scrollTop || 0) !== beforeTop
+    || (target.scrollHeight || 0) !== beforeHeight
+    || getResultLinks(target).length !== beforeLinks;
+}
+
+function mergeResultItems(items, links) {
+  const seen = new Set(items.map(item => item.url));
+  for (const link of links) {
+    const item = extractCardInfo(link);
+    if (!item.url || seen.has(item.url)) continue;
+    seen.add(item.url);
+    items.push(item);
+  }
+}
+
+async function collectAllResultItems(maxItems) {
+  const items = [];
+  let container = getScrollContainer();
+  if (!container) return items;
+
+  mergeResultItems(items, getResultLinks(container));
+
+  let stableCount = 0;
+  const maxStableCount = 15;
+  while (isScrapingActive && items.length < maxItems) {
+    if (isEndOfList(container)) break;
+
+    const beforeCount = items.length;
+    const moved = await scrollResultsList(container);
+    container = getScrollContainer() || container;
+    mergeResultItems(items, getResultLinks(container));
+
+    if (items.length === beforeCount && !moved) stableCount++;
+    else stableCount = 0;
+
+    if (stableCount >= maxStableCount) break;
+  }
+
+  return items.slice(0, maxItems);
+}
+
+async function findResultLinkByUrl(url, container) {
+  let target = container || getScrollContainer();
+  let link = getResultLinks(target).find(a => a.href.split('?')[0] === url);
+  if (link) return link;
+
+  if (target) {
+    try {
+      target.scrollTop = 0;
+      target.dispatchEvent(new Event('scroll', { bubbles: true }));
+      await backgroundSleep(500);
+    } catch (_) { /* ignore */ }
+  }
+
+  for (let i = 0; i < 40; i++) {
+    target = getScrollContainer() || target;
+    link = getResultLinks(target).find(a => a.href.split('?')[0] === url);
+    if (link) return link;
+    if (target && isEndOfList(target)) break;
+    const moved = await scrollResultsList(target);
+    if (!moved) await backgroundSleep(300);
+  }
+
+  return null;
 }
 
 // =====================================================================
@@ -500,6 +615,14 @@ async function flushBatch(pendingBatch) {
       });
     } catch (_) { res(); }
   });
+}
+
+function reportV3Log(message) {
+  try {
+    chrome.runtime.sendMessage({ action: 'v3_contentLog', message }, () => {
+      if (chrome.runtime.lastError) { /* ignore */ }
+    });
+  } catch (_) { /* ignore */ }
 }
 
 // =====================================================================
@@ -579,6 +702,7 @@ function matchesSearchArea(detail, searchArea) {
 async function startScraping(maxItems, targetGenres = [], searchArea = '') {
   isScrapingActive = true;
   searchPageUrl = window.location.href;
+  await reportState('active');
 
   const query = getCurrentQuery();
   const { searchGenre, searchKey } = parseSearchMeta(query);
@@ -601,58 +725,40 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
   const failedUrls = new Set();
   const pendingBatch = [];
   const BATCH_SIZE = 5;
-
-  let noNewCount = 0;
-  const MAX_NO_NEW_INITIAL = 20;
-  const MAX_NO_NEW_NORMAL = 15;
-  let MAX_NO_NEW = MAX_NO_NEW_INITIAL;
-
   let totalProcessed = 0;
   const startTime = Date.now();
 
-  while (isScrapingActive) {
-    container = getScrollContainer();
-    if (!container) {
-      noNewCount++;
-      if (noNewCount >= MAX_NO_NEW) break;
-      await backgroundSleep(500);
-      continue;
-    }
+  console.log('[Scraper] 一覧を最後までスクロールしてURLを収集中...');
+  reportV3Log('一覧URLを収集中...');
+  const resultItems = await collectAllResultItems(maxItems);
+  console.log(`[Scraper] URL収集完了 | ${resultItems.length}件`);
+  reportV3Log(`一覧URL収集完了 ${resultItems.length}件`);
 
-    if (totalProcessed > 0 && isEndOfList(container)) {
-      console.log('[Scraper] リストの最後に到達 → 終了');
-      break;
-    }
+  if (container) {
+    try {
+      container.scrollTop = 0;
+      container.dispatchEvent(new Event('scroll', { bubbles: true }));
+      await backgroundSleep(700);
+    } catch (_) { /* ignore */ }
+  }
 
-    const allLinks = getResultLinks(container);
-    const newItems = allLinks.filter(a => {
-      const url = a.href.split('?')[0];
-      return url && !processedUrls.has(url) && !failedUrls.has(url);
-    }).map(extractCardInfo);
-
-    if (!newItems.length) {
-      noNewCount++;
-      if (noNewCount >= MAX_NO_NEW) break;
-      await scrollResultsList(container);
-      continue;
-    }
-
-    noNewCount = 0;
-
-    for (const item of newItems) {
+  for (const item of resultItems) {
       if (!isScrapingActive) break;
-      if (processedUrls.size >= maxItems) { isScrapingActive = false; noNewCount = 0; break; }
+      if (processedUrls.size >= maxItems) { isScrapingActive = false; break; }
 
       const { url, name: cardName } = item;
       if (!url || processedUrls.has(url) || failedUrls.has(url)) continue;
 
       try {
         const freshContainer = getScrollContainer();
-        const freshLink = getResultLinks(freshContainer).find(a => a.href.split('?')[0] === url);
+        const freshLink = await findResultLinkByUrl(url, freshContainer);
         if (freshLink) {
           freshLink.click();
         } else {
-          window.location.href = url;
+          console.warn('[Scraper] 表示中リストからリンクを再取得できなかった:', cardName || url);
+          failedUrls.add(url);
+          await scrollResultsList(freshContainer);
+          continue;
         }
 
         const panelReady = await waitForDetailPanel(5000);
@@ -666,12 +772,6 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
         processedUrls.add(url);
 
         const detail = await scrapeDetailPanel(url, cardName);
-
-        if (!detail.phone) {
-          console.log('[Scraper] TELなし → スキップ:', detail.name);
-          await closeDetailPanel();
-          continue;
-        }
 
         if (!matchesTargetGenres(detail, targetGenres)) {
           console.log(`[Scraper] ジャンル不一致 → スキップ: ${detail.name} | ジャンル:${detail.genre}(${detail.googleGenre})`);
@@ -716,8 +816,6 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
         const perItem = totalProcessed > 0 ? (elapsed / totalProcessed).toFixed(1) : '-';
         console.log(`[Scraper] ✓ ${record.name} | 市区町村:${record.city} | ${totalProcessed}件目 ${perItem}秒/件`);
 
-        if (totalProcessed === 10) MAX_NO_NEW = MAX_NO_NEW_NORMAL;
-
         pendingBatch.push(record);
         if (pendingBatch.length >= BATCH_SIZE || processedUrls.size >= maxItems) {
           await flushBatch(pendingBatch);
@@ -738,15 +836,6 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
         await closeDetailPanel();
         await sleep(500);
       }
-    }
-
-    container = getScrollContainer();
-    await scrollResultsList(container);
-
-    if (totalProcessed > 0 && isEndOfList(container)) {
-      console.log('[Scraper] リストの最後に到達 → 終了');
-      break;
-    }
   }
 
   if (pendingBatch.length > 0) {

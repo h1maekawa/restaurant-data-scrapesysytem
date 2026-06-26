@@ -190,14 +190,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const current = Array.isArray(result.scrapedData) ? result.scrapedData : [];
       const incoming = Array.isArray(request.data) ? request.data : [];
 
-      const withPhone = incoming.filter(item => item?.phone && item.phone.trim() !== '');
-
       const existingUrls = new Set(current.map(i => i?.url).filter(Boolean));
-      const existingPhones = new Set(current.map(i => i?.phone).filter(Boolean));
-      const unique = withPhone.filter(i =>
-        i?.url && !existingUrls.has(i.url) &&
-        i?.phone && !existingPhones.has(i.phone)
-      );
+      const unique = incoming.filter(i => i?.url && !existingUrls.has(i.url));
       const updated = [...current, ...unique];
 
       chrome.storage.local.set({ scrapedData: updated }, () => {
