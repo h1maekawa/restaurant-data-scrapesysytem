@@ -231,32 +231,37 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function startScraping(tab, maxItems, targetGenres) {
-    const areaInput = searchAreaInput.value.trim();
-    let detectedArea = areaInput;
+  const areaInput = searchAreaInput.value.trim();
+  let detectedArea = areaInput;
 
-    if (!detectedArea) {
-      const currentQ = currentQuerySpan.textContent || "";
-      const parsed = parseQueryToAreaGenre(currentQ);
-      detectedArea = parsed.area;
-    }
-
-    chrome.storage.local.set({ scrapingState: 'active' }, () => {
-      try {
-        chrome.tabs.sendMessage(tab.id, {
-          action: 'startScraping',
-          maxItems: maxItems,
-          targetGenres: targetGenres,
-          filterConfig: { enabled: false },
-          searchArea: detectedArea
-        }, (response) => {
-          if (chrome.runtime.lastError) {
-            alert('ページの再読み込みが必要です。ページをリロードしてからお試しください。');
-            chrome.storage.local.set({ scrapingState: 'inactive' });
-          }
-        });
-      } catch (e) { }
-    });
+  if (!detectedArea) {
+    const currentQ = currentQuerySpan.textContent || "";
+    const parsed = parseQueryToAreaGenre(currentQ);
+    detectedArea = parsed.area;
   }
+
+  const runId = 'run_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+  chrome.storage.local.set({ 
+    scrapingState: 'active',
+    currentRunId: runId
+  }, () => {
+    try {
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'startScraping',
+        maxItems: maxItems,
+        targetGenres: targetGenres,
+        filterConfig: { enabled: false },
+        searchArea: detectedArea,
+        searchGenre: targetGenres.join(',')
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          alert('ページの再読み込みが必要です。ページをリロードしてからお試しください。');
+          chrome.storage.local.set({ scrapingState: 'inactive' });
+        }
+      });
+    } catch (e) { }
+  });
+}
 
   btnStart.addEventListener('click', async () => {
     const tab = await getCurrentTab();

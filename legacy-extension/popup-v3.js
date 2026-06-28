@@ -396,6 +396,36 @@ document.addEventListener('DOMContentLoaded', () => {
     btnStart.disabled = running;
     btnStop.disabled  = !running;
 
+    // 状態に応じたヘッダー色・テキスト
+    const header = document.querySelector('.v3-header') || document.querySelector('header');
+    if (header) {
+      header.style.borderBottom = '';
+      if (state === 'running') {
+        header.style.borderBottom = '3px solid #1A73E8';
+      } else if (state === 'stopped_by_user') {
+        header.style.borderBottom = '3px solid #F29900';
+      } else if (state === 'done') {
+        header.style.borderBottom = '3px solid #34A853';
+      } else if (state === 'error') {
+        header.style.borderBottom = '3px solid #EA4335';
+      }
+    }
+
+    // ステータス表示
+    const statusBadge = document.getElementById('v3-status-badge');
+    if (statusBadge) {
+      const statusMap = {
+        running:          { text: '実行中', color: '#1A73E8' },
+        stopped_by_user:  { text: 'ユーザー停止', color: '#F29900' },
+        done:             { text: '完了', color: '#34A853' },
+        error:            { text: 'エラー', color: '#EA4335' },
+        idle:             { text: '待機中', color: '#999' }
+      };
+      const s2 = statusMap[state] || statusMap.idle;
+      statusBadge.textContent = s2.text;
+      statusBadge.style.color = s2.color;
+    }
+
     elCurArea.textContent  = s[V3K.currentArea]  || '-';
     elCurGenre.textContent = s[V3K.currentGenre] || '-';
     elCurKw.textContent    = s[V3K.currentKw]    || '-';
@@ -425,13 +455,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const pct = totalCombos > 0 ? Math.min(100, (doneCombos / totalCombos) * 100) : 0;
     elBar.style.width = pct.toFixed(1) + '%';
 
+    // バーの色を状態で変える
+    const bar = document.getElementById('v3-bar');
+    if (bar) {
+      if (state === 'stopped_by_user') bar.style.background = '#F29900';
+      else if (state === 'done')       bar.style.background = '#34A853';
+      else if (state === 'error')      bar.style.background = '#EA4335';
+      else                             bar.style.background = '';
+    }
+
     // ETA
     const durations = Array.isArray(s[V3K.comboDurations]) ? s[V3K.comboDurations] : [];
     const avg = durations.length ? durations.reduce((a,b)=>a+b,0) / durations.length : 0;
     const remain = Math.max(0, totalCombos - doneCombos);
     if (running && avg > 0 && remain > 0) {
       elEta.textContent = fmtHMS(avg * remain);
-    } else if (state === 'done') {
+    } else if (state === 'done' || state === 'stopped_by_user') {
       elEta.textContent = '00:00:00';
     } else {
       elEta.textContent = '--:--:--';

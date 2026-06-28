@@ -1,0 +1,65 @@
+[
+  {
+    "date": "2026-06-28",
+    "featureId": "google-map-extension",
+    "featureName": "Googleマップ店舗データ取得拡張機能",
+    "type": "改善",
+    "description": "詳細パネル継続方式（閉じずに次カードへ遷移）で速度を大幅改善。1件ごとの内訳ログ追加。スキップ理由ログ追加。phoneStatus/hasWebsiteStatusの管理強化。"
+  },
+  {
+    "date": "2026-06-28",
+    "featureId": "google-map-extension",
+    "featureName": "Googleマップ店舗データ取得拡張機能",
+    "type": "改善",
+    "description": "STOP時の強制保存と自動ダウンロードを実装。stopped_by_userステータスの管理追加。二重ダウンロード防止（downloadedRunIds）を実装。"
+  },
+  {
+    "date": "2026-06-28",
+    "featureId": "google-map-extension",
+    "featureName": "Googleマップ店舗データ取得拡張機能",
+    "type": "改善",
+    "description": "表示順ストリーミング取得を実装。カードキュー化によるDOM参照排除。動的待機（waitForElement等）で固定sleepを廃止。"
+  },
+  {
+    "date": "2026-06-28",
+    "featureId": "list-inventory-management",
+    "featureName": "リスト在庫・消化状況管理機能",
+    "type": "新規追加",
+    "description": "機能を新規登録（構想中）。市区町村×業種ごとのリスト在庫・消化状況の可視化を検討開始。"
+  },
+  {
+    "date": "2026-06-28",
+    "featureId": "appointment-optimization",
+    "featureName": "アポ・訪問最適化機能",
+    "type": "新規追加",
+    "description": "機能を新規登録（構想中）。Googleカレンダー連携による訪問最適化の要件整理開始。"
+  },
+  {
+    "date": "2026-06-28",
+    "featureId": "call-cycle-management",
+    "featureName": "架電リスト周回管理機能",
+    "type": "新規追加",
+    "description": "機能を新規登録（構想中）。架電リストの複数周管理機能の要件整理開始。"
+  },
+  {
+    "date": "2026-06-01",
+    "featureId": "comdesk-csv-gas",
+    "featureName": "コムデスク投入用CSV生成機能",
+    "type": "改善",
+    "description": "出力ファイル名を「都道府県_市区町村_業種.csv」形式に統一。電話番号空白行の自動除外を追加。"
+  },
+  {
+    "date": "2026-06-01",
+    "featureId": "chain-exclude-gas",
+    "featureName": "チェーン店除外機能",
+    "type": "改善",
+    "description": "同一店名大量出現時のチェーン候補判定ロジックを追加。チェーン候補タブへの出力機能を追加。"
+  },
+  {
+    "date": "2026-06-15",
+    "featureId": "dedup-gas",
+    "featureName": "重複排除機能",
+    "type": "改善",
+    "description": "電話番号一致・店名＋住所一致の自動重複確定ロジックを強化。Googleマップ情報を優先採用するルールを明確化。"
+  }
+]

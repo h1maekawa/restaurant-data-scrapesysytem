@@ -1,0 +1,377 @@
+[
+  {
+    "id": "google-map-extension",
+    "name": "Googleマップ店舗データ取得拡張機能",
+    "category": "データ取得",
+    "status": "改善中",
+    "summary": "Googleマップから飲食店・店舗情報を自動取得するChrome拡張機能。検索結果を上から順に取得し、CSV/XLSXで出力する。",
+    "problem": "Googleマップの検索結果を手動でコピーする作業が膨大で、抜け漏れが発生する。",
+    "targetUsers": ["IS", "リスト作成担当", "事業責任者"],
+    "useFrequency": "毎日",
+    "useCase": "営業リスト作成の元データを取得するために使用する。市区町村×業種単位でGoogleマップを検索し、一括で店舗情報を収集する。",
+    "inputs": ["Googleマップ検索キーワード（エリア×業種）", "最大取得件数"],
+    "outputs": ["CSV", "XLSX"],
+    "howToUse": [
+      "Chrome拡張機能をインストールする",
+      "Googleマップで取得したいエリア×業種を検索する",
+      "拡張機能アイコンをクリックし、最大件数を設定してSTARTを押す",
+      "取得完了後、STOPを押してCSV/XLSXをダウンロードする"
+    ],
+    "notes": [
+      "取得速度はGoogleマップの表示状況に依存する",
+      "STOP時は取得済みデータが自動保存される",
+      "1件あたり平均5〜10秒を想定"
+    ],
+    "links": {
+      "github": "https://github.com/h1maekawa/restaurant-data-scrapesysytem",
+      "spreadsheet": "",
+      "drive": "",
+      "manual": "",
+      "download": "",
+      "demo": "",
+      "requirements": ""
+    },
+    "lastUpdated": "2026-06-28",
+    "tags": ["Chrome拡張機能", "Googleマップ", "CSV", "XLSX", "店舗データ"],
+    "roadmap": [
+      "取得項目を減らさず高速化（詳細パネル継続方式）",
+      "表示順ストリーミング取得",
+      "STOP時の強制保存と自動ダウンロード",
+      "詳細取得ログ追加（1件ごとの内訳）",
+      "スキップ理由ログ追加",
+      "phoneStatus / hasWebsiteStatus の管理強化"
+    ],
+    "highlights": [
+      "取得項目：店名・ジャンル・都道府県・市区町村・住所・電話番号・営業時間・定休日・HP有無・URL・取得日時",
+      "表示順を維持して上から順に取得",
+      "STOP時もデータを失わない"
+    ]
+  },
+  {
+    "id": "tabelog-hotpepper-extension",
+    "name": "食べログ・ホットペッパー店舗データ取得拡張機能",
+    "category": "データ取得",
+    "status": "運用中",
+    "summary": "食べログ・ホットペッパーから店舗情報を取得するChrome拡張機能。Googleマップで不足する情報の補完や追加取得に使用する。",
+    "problem": "Googleマップだけでは取得できない情報がある媒体が存在する。",
+    "targetUsers": ["IS", "リスト作成担当"],
+    "useFrequency": "週数回",
+    "useCase": "Googleマップで取得できなかった情報（電話番号・営業時間等）を補完する。または、追加の飲食店リスト取得に使用する。",
+    "inputs": ["食べログ・ホットペッパーの検索URL"],
+    "outputs": ["CSV"],
+    "howToUse": [
+      "Chrome拡張機能をインストールする",
+      "食べログまたはホットペッパーで対象エリア×業種を検索する",
+      "拡張機能を起動して取得を開始する",
+      "CSVをダウンロードしてGAS取込に使用する"
+    ],
+    "notes": [
+      "食べログはスクレイピング規約に注意",
+      "1ページごとの取得推奨"
+    ],
+    "links": {
+      "github": "",
+      "spreadsheet": "",
+      "drive": "",
+      "manual": "",
+      "download": "",
+      "demo": "",
+      "requirements": ""
+    },
+    "lastUpdated": "2026-06-01",
+    "tags": ["Chrome拡張機能", "食べログ", "ホットペッパー", "CSV", "店舗データ"],
+    "roadmap": [],
+    "highlights": [
+      "取得項目：店名・ジャンル・住所・電話番号・営業時間・定休日・媒体URL・取得日時"
+    ]
+  },
+  {
+    "id": "csv-normalize-gas",
+    "name": "CSV統合・正規化GAS",
+    "category": "リスト整形・統合",
+    "status": "運用中",
+    "summary": "Googleマップ・食べログ・ホットペッパーから取得したCSVをスプレッドシートに取り込み、営業リストとして使える形に正規化するGAS。",
+    "problem": "媒体ごとにCSVのフォーマットが異なり、手作業での統合に時間がかかる。",
+    "targetUsers": ["リスト作成担当", "IS管理者"],
+    "useFrequency": "毎日",
+    "useCase": "3媒体から取得したCSVを一括で取り込み、統一フォーマットの営業リストを作成する。",
+    "inputs": ["CSV（Googleマップ形式）", "CSV（食べログ形式）", "CSV（ホットペッパー形式）"],
+    "outputs": ["統合済みスプレッドシート", "正規化済み営業リスト"],
+    "howToUse": [
+      "スプレッドシートのGASメニューから「CSV取込」を実行する",
+      "取り込むCSVファイルを選択する",
+      "自動で正規化処理が走る",
+      "正規化済みリストを確認する"
+    ],
+    "notes": [
+      "文字コードはUTF-8・Shift_JISどちらも対応",
+      "電話番号は自動でハイフン統一"
+    ],
+    "links": {
+      "github": "",
+      "spreadsheet": "",
+      "drive": "",
+      "manual": "",
+      "download": "",
+      "demo": "",
+      "requirements": ""
+    },
+    "lastUpdated": "2026-06-10",
+    "tags": ["GAS", "CSV", "正規化", "スプレッドシート"],
+    "roadmap": [],
+    "highlights": [
+      "処理内容：CSV一括取込・文字コード判定・店名正規化・電話番号正規化・住所分解・都道府県＋市区町村抽出・ジャンル分類"
+    ]
+  },
+  {
+    "id": "dedup-gas",
+    "name": "重複排除機能",
+    "category": "リスト整形・統合",
+    "status": "改善中",
+    "summary": "Googleマップ・食べログ・ホットペッパーで同一店舗が重複している場合に、データを統合・排除する機能。",
+    "problem": "複数媒体から取得すると同一店舗が重複し、架電先が二重になる。",
+    "targetUsers": ["リスト作成担当", "IS管理者"],
+    "useFrequency": "毎日",
+    "useCase": "3媒体統合後に重複を排除し、架電リストの精度を上げる。",
+    "inputs": ["統合済みスプレッドシート"],
+    "outputs": ["重複排除済みリスト", "重複候補リスト（要確認）"],
+    "howToUse": [
+      "GASメニューから「重複排除を実行」を選択する",
+      "自動判定が完了後、要確認リストを確認する",
+      "手動でマージ判断が必要な件数を確認する"
+    ],
+    "notes": [
+      "電話番号一致→自動重複確定",
+      "店名＋住所一致→自動重複確定",
+      "店名のみ一致→要確認",
+      "Googleマップ情報を優先採用"
+    ],
+    "links": {
+      "github": "",
+      "spreadsheet": "",
+      "drive": "",
+      "manual": "",
+      "download": "",
+      "demo": "",
+      "requirements": ""
+    },
+    "lastUpdated": "2026-06-15",
+    "tags": ["GAS", "重複排除", "スプレッドシート", "データ統合"],
+    "roadmap": [
+      "あいまい一致（店名の揺れ）への対応強化",
+      "重複候補の一括承認UI追加"
+    ],
+    "highlights": [
+      "Googleマップにない電話番号などは食べログ・ホットペッパーで補完"
+    ]
+  },
+  {
+    "id": "chain-exclude-gas",
+    "name": "チェーン店除外機能",
+    "category": "リスト整形・統合",
+    "status": "運用中",
+    "summary": "営業対象外のチェーン店を自動判定して除外する機能。MASTER_CHAINリストとの照合や店名キーワード判定を使用する。",
+    "problem": "チェーン店は営業対象外だが、手作業での除外は漏れが発生する。",
+    "targetUsers": ["リスト作成担当", "IS管理者"],
+    "useFrequency": "毎日",
+    "useCase": "個人店・小規模店舗を中心に営業するため、チェーン店を自動除外する。",
+    "inputs": ["統合済みスプレッドシート"],
+    "outputs": ["チェーン除外済みリスト", "チェーン候補タブ"],
+    "howToUse": [
+      "GASメニューから「チェーン店除外を実行」を選択する",
+      "MASTER_CHAINリストと照合が自動実行される",
+      "チェーン候補タブを確認して問題なければ確定する"
+    ],
+    "notes": [
+      "MASTER_CHAINは定期的に更新が必要",
+      "同一店名が大量出現する場合はチェーン候補として出力"
+    ],
+    "links": {
+      "github": "",
+      "spreadsheet": "",
+      "drive": "",
+      "manual": "",
+      "download": "",
+      "demo": "",
+      "requirements": ""
+    },
+    "lastUpdated": "2026-06-01",
+    "tags": ["GAS", "チェーン店除外", "スプレッドシート"],
+    "roadmap": [],
+    "highlights": [
+      "MASTER_CHAINリストとの照合・店名キーワード判定・同一店名大量出現時のチェーン候補判定"
+    ]
+  },
+  {
+    "id": "phone-supplement-gas",
+    "name": "電話番号補完機能",
+    "category": "リスト整形・統合",
+    "status": "運用中",
+    "summary": "電話番号が不足している店舗について、外部APIを使って補完する機能。コムデスク投入可能件数を増やす。",
+    "problem": "Googleマップで電話番号が取得できない店舗は架電リストに入れられない。",
+    "targetUsers": ["リスト作成担当", "IS管理者"],
+    "useFrequency": "週数回",
+    "useCase": "電話番号未取得の店舗について、外部検索で補完してコムデスク投入件数を増やす。",
+    "inputs": ["電話番号未取得の店舗リスト（スプレッドシート）"],
+    "outputs": ["電話番号補完済みリスト"],
+    "howToUse": [
+      "電話番号が空白の行を選択する",
+      "GASメニューから「電話番号補完を実行」を選択する",
+      "APIによる自動補完が実行される",
+      "補完結果を確認する"
+    ],
+    "notes": [
+      "APIキーはスクリプトプロパティで管理（コードに直書き禁止）",
+      "補完率は100%ではないため確認が必要"
+    ],
+    "links": {
+      "github": "",
+      "spreadsheet": "",
+      "drive": "",
+      "manual": "",
+      "download": "",
+      "demo": "",
+      "requirements": ""
+    },
+    "lastUpdated": "2026-06-01",
+    "tags": ["GAS", "電話番号補完", "API", "スプレッドシート"],
+    "roadmap": [],
+    "highlights": [
+      "APIキーはスクリプトプロパティで安全に管理"
+    ]
+  },
+  {
+    "id": "comdesk-csv-gas",
+    "name": "コムデスク投入用CSV生成機能",
+    "category": "コムデスク投入",
+    "status": "運用中",
+    "summary": "営業リストをコムデスクへ投入できるCSV形式に変換する機能。市区町村×業種単位でCSVを分割出力する。",
+    "problem": "コムデスクへの投入には専用フォーマットのCSVが必要で、手作業での変換に時間がかかる。",
+    "targetUsers": ["IS管理者", "事業責任者"],
+    "useFrequency": "毎日",
+    "useCase": "架電対象の営業リストをコムデスク投入用CSVに変換する。",
+    "inputs": ["正規化済み営業リスト（スプレッドシート）"],
+    "outputs": ["コムデスク投入用CSV（都道府県_市区町村_業種.csv形式）"],
+    "howToUse": [
+      "GASメニューから「コムデスク用CSV生成」を実行する",
+      "出力単位（都道府県・市区町村・業種）を選択する",
+      "CSVが自動生成・ダウンロードされる",
+      "コムデスクに投入する"
+    ],
+    "notes": [
+      "出力ファイル名：都道府県_市区町村_業種.csv",
+      "例：栃木県_宇都宮市_居酒屋.csv",
+      "電話番号が空の行は除外される"
+    ],
+    "links": {
+      "github": "",
+      "spreadsheet": "",
+      "drive": "",
+      "manual": "",
+      "download": "",
+      "demo": "",
+      "requirements": ""
+    },
+    "lastUpdated": "2026-06-01",
+    "tags": ["GAS", "コムデスク", "CSV", "架電リスト"],
+    "roadmap": [],
+    "highlights": [
+      "出力単位：都道府県_市区町村_業種.csv"
+    ]
+  },
+  {
+    "id": "call-cycle-management",
+    "name": "架電リスト周回管理機能",
+    "category": "架電管理",
+    "status": "構想中",
+    "summary": "コムデスクに投入したリストを複数回架電するための管理機能。時間帯・曜日・担当者を変えて接触率を高める。",
+    "problem": "同じリストを1周で終わらせており、接触率が低い。複数周架電の管理が煩雑。",
+    "targetUsers": ["IS管理者", "IS", "事業責任者"],
+    "useFrequency": "毎日（構想中）",
+    "useCase": "同じリストを有効活用し、時間帯・担当者を変えながら複数回架電して接触率を高める。",
+    "inputs": ["架電リスト", "コムデスクの結果データ"],
+    "outputs": ["周回管理シート", "次回架電推奨リスト"],
+    "howToUse": [],
+    "notes": [],
+    "links": {
+      "github": "",
+      "spreadsheet": "",
+      "drive": "",
+      "manual": "",
+      "download": "",
+      "demo": "",
+      "requirements": ""
+    },
+    "lastUpdated": "2026-06-28",
+    "tags": ["架電管理", "周回管理", "コムデスク"],
+    "roadmap": [
+      "管理項目：架電回数・最終架電日時・最終担当者・最終結果・次回推奨時間帯・次回推奨担当者・周回数",
+      "要件整理中"
+    ],
+    "highlights": []
+  },
+  {
+    "id": "appointment-optimization",
+    "name": "アポ・訪問最適化機能",
+    "category": "アポ・訪問最適化",
+    "status": "構想中",
+    "summary": "FSの予定や移動を考慮して、どの市区町村のアポを優先的に入れるべきかを判断する機能。",
+    "problem": "アポ入れ判断が担当者の感覚に依存しており、移動効率が最適化されていない。",
+    "targetUsers": ["IS", "FS", "事業責任者"],
+    "useFrequency": "毎日（構想中）",
+    "useCase": "訪問効率を高め、移動負担を減らすために、Googleカレンダーの予定と連携してアポ優先度を判断する。",
+    "inputs": ["Googleカレンダーの予定", "架電リスト"],
+    "outputs": ["推奨市区町村リスト", "アポ登録可否判定"],
+    "howToUse": [],
+    "notes": [],
+    "links": {
+      "github": "",
+      "spreadsheet": "",
+      "drive": "",
+      "manual": "",
+      "download": "",
+      "demo": "",
+      "requirements": ""
+    },
+    "lastUpdated": "2026-06-28",
+    "tags": ["アポ管理", "訪問最適化", "Googleカレンダー", "GAS"],
+    "roadmap": [
+      "Googleカレンダー連携",
+      "既存アポ確認・移動時間判定",
+      "推奨市区町村表示・アポ登録可否判定",
+      "要件整理中"
+    ],
+    "highlights": []
+  },
+  {
+    "id": "list-inventory-management",
+    "name": "リスト在庫・消化状況管理機能",
+    "category": "分析・レポート",
+    "status": "構想中",
+    "summary": "市区町村×業種ごとに営業リストの残数・消化状況を可視化する機能。IS4名へのリスト配布最適化に使用する。",
+    "problem": "リストの在庫状況が把握できず、IS間でリストが偏る・不足することがある。",
+    "targetUsers": ["IS管理者", "事業責任者"],
+    "useFrequency": "毎週（構想中）",
+    "useCase": "IS4名に対してリストを適切に配布するために、在庫・消化状況を可視化する。",
+    "inputs": ["架電結果データ", "リストマスター"],
+    "outputs": ["在庫・消化状況ダッシュボード"],
+    "howToUse": [],
+    "notes": [],
+    "links": {
+      "github": "",
+      "spreadsheet": "",
+      "drive": "",
+      "manual": "",
+      "download": "",
+      "demo": "",
+      "requirements": ""
+    },
+    "lastUpdated": "2026-06-28",
+    "tags": ["分析", "レポート", "リスト管理", "ダッシュボード"],
+    "roadmap": [
+      "表示項目：市区町村・業種・全件数・未架電・1周済み・2周済み・3周済み・アポ化・NG・次回架電対象",
+      "要件整理中"
+    ],
+    "highlights": []
+  }
+]

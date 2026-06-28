@@ -251,8 +251,8 @@ function waitForComboDone(area, genre, tabId, timeoutMs = 1800000) { // 30分
         }
       }
 
-      // 完了通知
-      if (changes.scrapingState && changes.scrapingState.newValue === 'done') {
+      // 完了通知 / ユーザー停止通知
+      if (changes.scrapingState && ['done', 'stopped_by_user'].includes(changes.scrapingState.newValue)) {
         clearTimeout(timeoutTimer);
         chrome.storage.onChanged.removeListener(handler);
 
@@ -263,7 +263,8 @@ function waitForComboDone(area, genre, tabId, timeoutMs = 1800000) { // 30分
         const enriched = fresh.map(it => ({ ...it, sourceGenre: genre, area }));
         const merged = collected.concat(enriched);
         await v3Set({ [V3K.collected]: merged });
-        await v3Log(`${genre} 完了 (本コンボ ${enriched.length}件 / 累計 ${merged.length}件)`);
+        const statusLabel = changes.scrapingState.newValue === 'stopped_by_user' ? 'ユーザー停止' : '完了';
+        await v3Log(`${genre} ${statusLabel} (本コンボ ${enriched.length}件 / 累計 ${merged.length}件)`);
         chrome.runtime.sendMessage({ action: 'v3_progress' }).catch(() => { });
         resolve(enriched);
       }
@@ -319,7 +320,8 @@ async function runCombo(area, genre) {
           maxItems,
           targetGenres: [],
           filterConfig: { enabled: false },
-          searchArea: area
+          searchArea: area,
+          searchGenre: genre
         }, response => {
           if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
           else resolve(response);
@@ -357,7 +359,7 @@ async function v3Drive() {
   try {
     const r = await v3Get([
       V3K.state, V3K.areas, V3K.genres, V3K.areaIdx, V3K.genreIdx,
-      V3K.totalAreas, V3K.totalGenres, V3K.comboDurations
+      V3K.totalAreas, V3K.totalGenres, V3K.comboDurations, 'v3_runId'
     ]);
     if (r[V3K.state] !== 'running') return;
 
@@ -366,10 +368,17 @@ async function v3Drive() {
     let areaIdx = r[V3K.areaIdx] || 0;
     let genreIdx = r[V3K.genreIdx] || 0;
     const durations = Array.isArray(r[V3K.comboDurations]) ? r[V3K.comboDurations] : [];
+    const runId = r.v3_runId;
 
     while (true) {
       const cur = await v3Get([V3K.state]);
-      if (cur[V3K.state] !== 'running') { await v3Log('停止しました'); return; }
+      if (cur[V3K.state] !== 'running') {
+        await v3Log('停止しました');
+        if (runId) {
+          chrome.runtime.sendMessage({ action: 'triggerV3Download', runId });
+        }
+        return;
+      }
 
       if (areaIdx >= areas.length) break;
 
@@ -394,13 +403,16 @@ async function v3Drive() {
 
     await v3Set({ [V3K.state]: 'done' });
     await v3Log(`🎉 全エリア × 全ジャンル 取得完了`);
+    if (runId) {
+      chrome.runtime.sendMessage({ action: 'triggerV3Download', runId });
+    }
     chrome.runtime.sendMessage({ action: 'v3_done' }).catch(() => { });
     await closeOffscreen();
 
   } catch (e) {
     console.error('[v3] drive error:', e);
     await v3Log(`致命的エラー: ${e?.message || e}`);
-    await v3Set({ [V3K.state]: 'idle' });
+    await v3Set({ [V3K.state]: 'error' });
   } finally {
     driveRunning = false;
   }
@@ -442,6 +454,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         if (city) useAreas = [city];
       }
       const useGenres = genres && genres.length ? genres : await getGenres();
+      const runId = 'v3_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
 
       await v3Set({
         [V3K.state]: 'running',
@@ -457,9 +470,11 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         [V3K.startTime]: Date.now(),
         [V3K.comboDurations]: [],
         [V3K.maxItems]: maxItems || 100,
-        scrapedData: []
+        scrapedData: [],
+        v3_runId: runId,
+        v3_stopReason: ''
       });
-      await v3Log(`v3 開始: ${city || '(エリア指定なし)'} | 区 ${useAreas.length} × ジャンル ${useGenres.length}`);
+      await v3Log(`v3 開始: ${city || '(エリア指定なし)'} | 区 ${useAreas.length} × ジャンル ${useGenres.length} | runId: ${runId}`);
 
       try { chrome.power.requestKeepAwake('display'); } catch (_) { }
       try { chrome.alarms.create('v3_tick', { periodInMinutes: 0.5 }); } catch (_) { }
@@ -471,7 +486,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
       v3Drive().catch(async e => {
         console.error('[v3] drive error:', e);
         await v3Log(`致命的エラー: ${e?.message || e}`);
-        await v3Set({ [V3K.state]: 'idle' });
+        await v3Set({ [V3K.state]: 'error' });
         driveRunning = false;
       });
     })();
@@ -480,8 +495,11 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
 
   if (req.action === 'v3_stop') {
     (async () => {
-      await v3Set({ [V3K.state]: 'idle' });
-      await v3Log('🛑 STOP が押されました');
+      await v3Set({
+        [V3K.state]: 'stopped_by_user',
+        v3_stopReason: 'user_requested'
+      });
+      await v3Log('🛑 STOP が押されました（ユーザー停止処理中）');
       const r = await v3Get([V3K.tabId]);
       if (r[V3K.tabId]) {
         await safeTabSendMessage(r[V3K.tabId], { action: 'stopScraping' });
@@ -489,6 +507,13 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
       try { chrome.power.releaseKeepAwake(); } catch (_) { }
       try { chrome.alarms.clear('v3_tick'); } catch (_) { }
       await closeOffscreen();
+
+      // 自動ダウンロードを実行
+      const runIdR = await v3Get(['v3_runId']);
+      if (runIdR.v3_runId) {
+        chrome.runtime.sendMessage({ action: 'triggerV3Download', runId: runIdR.v3_runId });
+      }
+
       sendResponse({ ok: true });
     })();
     return true;

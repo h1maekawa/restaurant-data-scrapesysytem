@@ -1,5 +1,7 @@
 // background.js  v3.4.0 (共通スキーマ対応版)
 
+const downloadedRunIds = new Set();
+
 // =====================================================================
 // CSVヘッダー定義 (共通スキーマ19項目)
 // =====================================================================
@@ -219,16 +221,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         chrome.alarms.clear('keepAlive');
       }
 
-      if (request.state === 'done') {
-        chrome.storage.local.get(['scrapedData', 'filterConfig'], async result => {
+      if (request.state === 'done' || request.state === 'stopped_by_user') {
+        chrome.storage.local.get(['scrapedData', 'filterConfig', 'currentRunId'], async result => {
+          const runId = result.currentRunId || 'default_run';
+          if (downloadedRunIds.has(runId)) {
+            console.log(`[BG] Download for runId ${runId} already executed. Skipping duplicate.`);
+            return;
+          }
+          downloadedRunIds.add(runId);
+
           const data = Array.isArray(result.scrapedData) ? result.scrapedData : [];
           const filterConfig = result.filterConfig || null;
+
+          const isUserStop = request.state === 'stopped_by_user';
+          const notificationTitle = isUserStop ? '抽出を停止しました' : '抽出が完了しました';
+          const notificationMsg = isUserStop 
+            ? `ユーザー停止: 取得済み ${data.length} 件のデータをCSV出力します。`
+            : `合計 ${data.length} 件のデータを取得しました。自動でダウンロードを開始します。`;
 
           chrome.notifications.create({
             type: 'basic',
             iconUrl: 'icons/icon128.png',
-            title: '抽出が完了しました',
-            message: `合計 ${data.length} 件のデータを取得しました。自動でダウンロードを開始します。`,
+            title: notificationTitle,
+            message: notificationMsg,
             priority: 2
           });
 
@@ -243,6 +258,66 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
       sendResponse({ success: true });
     });
+    return true;
+  }
+
+  if (request.action === 'triggerV3Download') {
+    (async () => {
+      const runId = request.runId;
+      if (downloadedRunIds.has(runId)) {
+        console.log(`[BG] V3 Download for runId ${runId} already executed. Skipping duplicate.`);
+        sendResponse({ ok: true, duplicate: true });
+        return;
+      }
+      downloadedRunIds.add(runId);
+
+      chrome.storage.local.get(['v3_collectedData', 'v3_city', 'v3_genres'], async result => {
+        const data = Array.isArray(result.v3_collectedData) ? result.v3_collectedData : [];
+        if (data.length === 0) {
+          sendResponse({ ok: true, reason: 'no data' });
+          return;
+        }
+
+        const city = result.v3_city || 'GoogleMap';
+        const uniqueGenres = Array.from(new Set(data.map(it => it.sourceGenre).filter(Boolean)));
+        const genresStr = uniqueGenres.length > 0 
+          ? uniqueGenres.slice(0, 5).join('_') + (uniqueGenres.length > 5 ? '等' : '') 
+          : '全ジャンル';
+
+        const d = new Date();
+        const z = n => String(n).padStart(2,'0');
+        const dateStr = `${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
+        const sanitize = s => String(s || '').replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,'_').slice(0,50);
+        const filename = `${sanitize(city)}_${sanitize(genresStr)}_${dateStr}.csv`;
+
+        const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+        const OUTPUT_HEADERS = [
+          '店名', 'ジャンル', '取得元ジャンル', '都道府県', '市区町村', '住所', '電話番号',
+          '定休日', '営業日', '営業開始A', '営業終了A', '営業開始B', '営業終了B',
+          '営業時間原文', 'URL', 'HP有無', '媒体', '取得元URL', '取得日時'
+        ];
+        let csv = '\uFEFF' + OUTPUT_HEADERS.join(',') + '\n';
+        for (const it of data) {
+          csv += [
+            esc(it.name), esc(it.genre), esc(it.sourceGenre), esc(it.prefecture), esc(it.city),
+            esc(it.address), esc(it.phone), esc(it.regularHoliday), esc(it.businessDays),
+            esc(it.openTimeA), esc(it.closeTimeA), esc(it.openTimeB), esc(it.closeTimeB),
+            esc(it.rawHours), esc(it.url), esc(it.hasWebsite || '無'), esc(it.source || 'GoogleMap'),
+            esc(it.sourceUrl), esc(it.scrapedAt)
+          ].join(',') + '\n';
+        }
+
+        const encodedUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+
+        try {
+          await chrome.downloads.download({ url: encodedUri, filename, saveAs: false });
+          sendResponse({ ok: true, filename });
+        } catch (e) {
+          console.error('[BG] V3 download failed:', e);
+          sendResponse({ ok: false, error: e.message });
+        }
+      });
+    })();
     return true;
   }
 
