@@ -142,6 +142,14 @@ function sanitizeFilename(str) {
     .slice(0, 50);
 }
 
+function safeTabSendMessage(tabId, message) {
+  try {
+    chrome.tabs.sendMessage(tabId, message, () => {
+      if (chrome.runtime.lastError) { /* Receiving end does not exist */ }
+    });
+  } catch (_) { /* ignore */ }
+}
+
 // =====================================================================
 // 自動ダウンロード
 // =====================================================================
@@ -247,9 +255,7 @@ chrome.alarms.onAlarm.addListener(alarm => {
     if (result.scrapingState !== 'active') return;
     chrome.tabs.query(
       { url: ['https://www.google.com/maps/*', 'https://www.google.co.jp/maps/*'] },
-      tabs => tabs.forEach(tab =>
-        chrome.tabs.sendMessage(tab.id, { action: 'ping' }).catch(() => { })
-      )
+      tabs => tabs.forEach(tab => safeTabSendMessage(tab.id, { action: 'ping' }))
     );
   });
 });

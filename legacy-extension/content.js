@@ -503,7 +503,7 @@ async function scrollResultsList(container) {
     lastLink?.scrollIntoView({ block: 'end', behavior: 'auto' });
   } catch (_) { /* ignore */ }
 
-  await backgroundSleep(1200);
+  await backgroundSleep(650);
   return (target.scrollTop || 0) !== beforeTop
     || (target.scrollHeight || 0) !== beforeHeight
     || getResultLinks(target).length !== beforeLinks;
@@ -519,27 +519,57 @@ function mergeResultItems(items, links) {
   }
 }
 
-async function collectAllResultItems(maxItems) {
+async function collectAllResultItems(maxItems, stats = null) {
   const items = [];
   let container = getScrollContainer();
-  if (!container) return items;
+  if (!container) {
+    if (stats) stats.scrollEndReason = 'scroll_container_not_found';
+    return items;
+  }
 
   mergeResultItems(items, getResultLinks(container));
+  if (stats) {
+    stats.urlCollected = items.length;
+    if (items.length > 0) stats.scrollLastIncreaseAt = Date.now();
+  }
 
   let stableCount = 0;
-  const maxStableCount = 15;
+  const maxStableCount = 8;
+  if (stats) stats.scrollMaxStableCount = maxStableCount;
   while (isScrapingActive && items.length < maxItems) {
-    if (isEndOfList(container)) break;
+    if (isEndOfList(container)) {
+      if (stats) stats.scrollEndReason = 'end_of_list_message';
+      break;
+    }
 
     const beforeCount = items.length;
     const moved = await scrollResultsList(container);
+    if (stats) stats.scrollCount++;
     container = getScrollContainer() || container;
     mergeResultItems(items, getResultLinks(container));
+
+    const increased = items.length - beforeCount;
+    if (stats) {
+      stats.urlCollected = items.length;
+      if (increased > 0) {
+        stats.scrollLastIncreaseAt = Date.now();
+        stats.scrollNoIncreaseCount = 0;
+      } else {
+        stats.scrollNoIncreaseCount++;
+      }
+    }
 
     if (items.length === beforeCount && !moved) stableCount++;
     else stableCount = 0;
 
-    if (stableCount >= maxStableCount) break;
+    if (stableCount >= maxStableCount) {
+      if (stats) stats.scrollEndReason = `no_new_url_${stableCount}_times`;
+      break;
+    }
+  }
+
+  if (stats && !stats.scrollEndReason) {
+    stats.scrollEndReason = items.length >= maxItems ? 'target_count_reached' : 'scraping_stopped';
   }
 
   return items.slice(0, maxItems);
@@ -550,21 +580,13 @@ async function findResultLinkByUrl(url, container) {
   let link = getResultLinks(target).find(a => a.href.split('?')[0] === url);
   if (link) return link;
 
-  if (target) {
-    try {
-      target.scrollTop = 0;
-      target.dispatchEvent(new Event('scroll', { bubbles: true }));
-      await backgroundSleep(500);
-    } catch (_) { /* ignore */ }
-  }
-
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 18; i++) {
     target = getScrollContainer() || target;
     link = getResultLinks(target).find(a => a.href.split('?')[0] === url);
     if (link) return link;
     if (target && isEndOfList(target)) break;
     const moved = await scrollResultsList(target);
-    if (!moved) await backgroundSleep(300);
+    if (!moved) await backgroundSleep(120);
   }
 
   return null;
@@ -615,6 +637,7 @@ async function flushBatch(pendingBatch) {
       });
     } catch (_) { res(); }
   });
+  return payload.length;
 }
 
 function reportV3Log(message) {
@@ -623,6 +646,63 @@ function reportV3Log(message) {
       if (chrome.runtime.lastError) { /* ignore */ }
     });
   } catch (_) { /* ignore */ }
+}
+
+function formatRate(count, total) {
+  if (!total) return '0.0%';
+  return `${((count / total) * 100).toFixed(1)}%`;
+}
+
+function createSpeedStats({ searchArea, searchGenre, searchKey, maxItems }) {
+  const now = Date.now();
+  return {
+    startedAt: now,
+    searchArea,
+    searchGenre,
+    searchKey,
+    maxItems,
+    urlCollected: 0,
+    detailFetched: 0,
+    saved: 0,
+    skippedComplete: 0,
+    refetchPartial: 0,
+    failed: 0,
+    saveCount: 0,
+    lastSavedAt: 0,
+    nameCount: 0,
+    addressCount: 0,
+    phoneCount: 0,
+    hoursCount: 0,
+    hpJudgedCount: 0,
+    scrollCount: 0,
+    scrollNoIncreaseCount: 0,
+    scrollLastIncreaseAt: now,
+    scrollEndReason: '',
+    scrollMaxStableCount: 8
+  };
+}
+
+function markRecordQuality(stats, record) {
+  if (record.name) stats.nameCount++;
+  if (record.address) stats.addressCount++;
+  if (record.phone) stats.phoneCount++;
+  if (record.rawHours) stats.hoursCount++;
+  if (record.hasWebsite === '有' || record.hasWebsite === '無') stats.hpJudgedCount++;
+}
+
+function buildSpeedSummary(stats, label = '速度ログ') {
+  const elapsedSec = Math.max(1, Math.round((Date.now() - stats.startedAt) / 1000));
+  const perItem = stats.detailFetched ? (elapsedSec / stats.detailFetched).toFixed(1) : '-';
+  const hourly = stats.detailFetched ? Math.round(stats.detailFetched / elapsedSec * 3600) : 0;
+  const savedAt = stats.lastSavedAt ? new Date(stats.lastSavedAt).toLocaleTimeString() : '-';
+
+  return [
+    `${label}: ${stats.searchArea || '-'} ${stats.searchGenre || '-'} (${stats.searchKey || '-'})`,
+    `経過${elapsedSec}秒 / URL${stats.urlCollected}件 / 詳細${stats.detailFetched}件 / 失敗${stats.failed}件`,
+    `平均${perItem}秒/件 / 推定${hourly}件/時 / 保存${stats.saveCount}回(最終${savedAt})`,
+    `取得率 店名${formatRate(stats.nameCount, stats.detailFetched)} 住所${formatRate(stats.addressCount, stats.detailFetched)} 電話${formatRate(stats.phoneCount, stats.detailFetched)} 営業時間${formatRate(stats.hoursCount, stats.detailFetched)} HP判定${formatRate(stats.hpJudgedCount, stats.detailFetched)}`,
+    `スクロール${stats.scrollCount}回 / 増加なし連続${stats.scrollNoIncreaseCount}回 / 終了理由:${stats.scrollEndReason || '未確定'}`
+  ].join(' | ');
 }
 
 // =====================================================================
@@ -706,10 +786,12 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
 
   const query = getCurrentQuery();
   const { searchGenre, searchKey } = parseSearchMeta(query);
+  const speedStats = createSpeedStats({ searchArea, searchGenre, searchKey, maxItems });
 
   console.log(`[Scraper] 検索ジャンル:${searchGenre} | 検索キー:${searchKey}`);
   console.log('[Scraper] 選択ジャンル', targetGenres);
   console.log('[Scraper] エリアフィルタ', searchArea || '（未設定）');
+  reportV3Log(`検索開始: ${searchArea || '-'} ${searchGenre || '-'} | キーワード:${searchKey || query || '-'}`);
 
   await sleep(500);
 
@@ -730,15 +812,16 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
 
   console.log('[Scraper] 一覧を最後までスクロールしてURLを収集中...');
   reportV3Log('一覧URLを収集中...');
-  const resultItems = await collectAllResultItems(maxItems);
+  const resultItems = await collectAllResultItems(maxItems, speedStats);
+  speedStats.urlCollected = resultItems.length;
   console.log(`[Scraper] URL収集完了 | ${resultItems.length}件`);
-  reportV3Log(`一覧URL収集完了 ${resultItems.length}件`);
+  reportV3Log(`一覧URL収集完了 ${resultItems.length}件 | スクロール${speedStats.scrollCount}回 | 終了理由:${speedStats.scrollEndReason}`);
 
   if (container) {
     try {
       container.scrollTop = 0;
       container.dispatchEvent(new Event('scroll', { bubbles: true }));
-      await backgroundSleep(700);
+      await backgroundSleep(350);
     } catch (_) { /* ignore */ }
   }
 
@@ -756,14 +839,17 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
           freshLink.click();
         } else {
           console.warn('[Scraper] 表示中リストからリンクを再取得できなかった:', cardName || url);
+          speedStats.failed++;
           failedUrls.add(url);
           await scrollResultsList(freshContainer);
           continue;
         }
 
-        const panelReady = await waitForDetailPanel(5000);
+        let panelReady = await waitForDetailPanel(2500);
+        if (!panelReady) panelReady = await waitForDetailPanel(2500);
         if (!panelReady) {
           console.warn('[Scraper] パネルが開かなかった:', cardName || url);
+          speedStats.failed++;
           failedUrls.add(url);
           await closeDetailPanel();
           continue;
@@ -812,13 +898,21 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
         };
 
         totalProcessed++;
+        speedStats.detailFetched++;
+        markRecordQuality(speedStats, record);
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
         const perItem = totalProcessed > 0 ? (elapsed / totalProcessed).toFixed(1) : '-';
         console.log(`[Scraper] ✓ ${record.name} | 市区町村:${record.city} | ${totalProcessed}件目 ${perItem}秒/件`);
 
         pendingBatch.push(record);
         if (pendingBatch.length >= BATCH_SIZE || processedUrls.size >= maxItems) {
-          await flushBatch(pendingBatch);
+          const flushed = await flushBatch(pendingBatch);
+          if (flushed) {
+            speedStats.saved += flushed;
+            speedStats.saveCount++;
+            speedStats.lastSavedAt = Date.now();
+            reportV3Log(buildSpeedSummary(speedStats, '中間速度ログ'));
+          }
         }
 
         try {
@@ -828,21 +922,28 @@ async function startScraping(maxItems, targetGenres = [], searchArea = '') {
         } catch (_) { /* ignore */ }
 
         await closeDetailPanel();
-        await sleep(300);
+        await sleep(80);
 
       } catch (err) {
         console.error('[Scraper] エラー:', err);
+        speedStats.failed++;
         failedUrls.add(url);
         await closeDetailPanel();
-        await sleep(500);
+        await sleep(180);
       }
   }
 
   if (pendingBatch.length > 0) {
-    await flushBatch(pendingBatch);
+    const flushed = await flushBatch(pendingBatch);
+    if (flushed) {
+      speedStats.saved += flushed;
+      speedStats.saveCount++;
+      speedStats.lastSavedAt = Date.now();
+    }
   }
 
   console.log(`[Scraper] 完了 | 合計${totalProcessed}件 | ${((Date.now() - startTime) / 1000).toFixed(0)}秒 | failed:${failedUrls.size}`);
+  reportV3Log(buildSpeedSummary(speedStats, 'コンボ完了速度ログ'));
   await reportState('done');
 }
 

@@ -48,6 +48,22 @@ function v3Set(obj) {
   return new Promise(r => chrome.storage.local.set(obj, r));
 }
 
+function safeTabSendMessage(tabId, message) {
+  return new Promise(resolve => {
+    try {
+      chrome.tabs.sendMessage(tabId, message, response => {
+        if (chrome.runtime.lastError) {
+          resolve(null);
+          return;
+        }
+        resolve(response || null);
+      });
+    } catch (_) {
+      resolve(null);
+    }
+  });
+}
+
 function v3Timestamp() {
   const d = new Date();
   const z = n => String(n).padStart(2, '0');
@@ -211,7 +227,7 @@ function waitForComboDone(area, genre, tabId, timeoutMs = 1800000) { // 30分
       timeoutTimer = setTimeout(async () => {
         timedOut = true;
         chrome.storage.onChanged.removeListener(handler);
-        try { chrome.tabs.sendMessage(tabId, { action: 'stopScraping' }); } catch (_) { }
+        await safeTabSendMessage(tabId, { action: 'stopScraping' });
         await v3Log(`⚠ ${area} ${genre} タイムアウト（30分間完了通知なし）`);
         resolve([]);
       }, timeoutMs);
@@ -468,7 +484,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
       await v3Log('🛑 STOP が押されました');
       const r = await v3Get([V3K.tabId]);
       if (r[V3K.tabId]) {
-        try { chrome.tabs.sendMessage(r[V3K.tabId], { action: 'stopScraping' }); } catch (_) { }
+        await safeTabSendMessage(r[V3K.tabId], { action: 'stopScraping' });
       }
       try { chrome.power.releaseKeepAwake(); } catch (_) { }
       try { chrome.alarms.clear('v3_tick'); } catch (_) { }
@@ -524,7 +540,7 @@ chrome.alarms.onAlarm.addListener(async alarm => {
   if (r[V3K.state] !== 'running') return;
   await ensureOffscreen();
   if (r[V3K.tabId]) {
-    try { chrome.tabs.sendMessage(r[V3K.tabId], { action: 'ping' }).catch(() => { }); } catch (_) { }
+    await safeTabSendMessage(r[V3K.tabId], { action: 'ping' });
   }
   // [FIX-4] SW 復帰後、v3Drive() が止まっていたら再起動
   if (!driveRunning) {

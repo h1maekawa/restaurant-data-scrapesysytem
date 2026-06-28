@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HD事業部 スクレイピングツール</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #F8F9FB;
+            --surface: #FFFFFF;
+            --border: #E4E7EC;
+            --border2: #D1D5DB;
+            --accent: #2563EB;
+            --accent-s: #EFF6FF;
+            --accent2: #1D4ED8;
+            --green: #16A34A;
+            --green-s: #F0FDF4;
+            --orange: #EA580C;
+            --orange-s: #FFF7ED;
+            --purple: #7C3AED;
+            --purple-s: #F5F3FF;
+            --red: #DC2626;
+            --tx: #111827;
+            --tx-m: #6B7280;
+            --tx-s: #9CA3AF;
+            --radius: 12px;
+            --shadow: 0 1px 3px rgba(0, 0, 0, .07), 0 1px 2px rgba(0, 0, 0, .05);
+            --shadow-h: 0 4px 16px rgba(0, 0, 0, .10);
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--tx);
+            font-family: 'Noto Sans JP', system-ui, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 40px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-badge {
+            background: var(--accent);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .06em;
+            padding: 3px 8px;
+            border-radius: 5px;
+        }
+
+        .header-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--tx);
+        }
+
+        .header-right {
+            font-size: 12px;
+            color: var(--tx-s);
+        }
+
+        /* ── Hero ── */
+        .hero {
+            padding: 56px 40px 40px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .hero-eyebrow {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            color: var(--accent);
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .hero-title {
+            font-size: 32px;
+            font-weight: 900;
+            line-height: 1.25;
+            color: var(--tx);
+            margin-bottom: 12px;
+        }
+
+        .hero-sub {
+            font-size: 15px;
+            color: var(--tx-m);
+            max-width: 560px;
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 32px;
+            margin-top: 32px;
+            padding-top: 28px;
+            border-top: 1px solid var(--border);
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .stat-num {
+            font-size: 26px;
+            font-weight: 900;
+            color: var(--tx);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--tx-m);
+        }
+
+        /* ── Grid ── */
+        .grid {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 40px 80px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        /* ── Tool Card ── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: box-shadow .18s ease, transform .18s ease;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-h);
+            transform: translateY(-2px);
+        }
+
+        .card-accent-bar {
+            height: 4px;
+            width: 100%;
+        }
+
+        .card--maps .card-accent-bar {
+            background: var(--accent);
+        }
+
+        .card--tabelog .card-accent-bar {
+            background: var(--orange);
+        }
+
+        .card--future .card-accent-bar {
+            background: var(--purple);
+        }
+
+        .card-header {
+            padding: 24px 24px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-icon-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .card-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .card--maps .card-icon {
+            background: var(--accent-s);
+        }
+
+        .card--tabelog .card-icon {
+            background: var(--orange-s);
+        }
+
+        .card--future .card-icon {
+            background: var(--purple-s);
+        }
+
+        .card-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--tx);
+            line-height: 1.3;
+        }
+
+        .card-version {
+            font-size: 11px;
+            color: var(--tx-s);
+            font-family: 'Menlo', 'Consolas', monospace;
+            margin-top: 2px;
+        }
+
+        .card-desc {
+            font-size: 13px;
+            color: var(--tx-m);
+            line-height: 1.65;
+        }
+
+        /* Tags */
+        .tag-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 14px;
+        }
+
+        .tag {
+            font-size: 11px;
+            font-weight: 500;
+            padding: 3px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border2);
+            color: var(--tx-m);
+            background: var(--bg);
+        }
+
+        /* Steps */
+        .card-steps {
+            padding: 20px 24px;
+            flex: 1;
+        }
+
+        .steps-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .1em;
+            color: var(--tx-s);
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+
+        .step {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .step:last-child {
+            border-bottom: none;
+        }
+
+        .step-num {
+            font-family: 'Menlo', 'Consolas', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            min-width: 22px;
+            color: var(--tx-s);
+            padding-top: 1px;
+        }
+
+        .card--maps .step-num {
+            color: var(--accent);
+        }
+
+        .card--tabelog .step-num {
+            color: var(--orange);
+        }
+
+        .card--future .step-num {
+            color: var(--purple);
+        }
+
+        .step-body {}
+
+        .step-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--tx);
+            margin-bottom: 2px;
+        }
+
+        .step-detail {
+            font-size: 12px;
+            color: var(--tx-m);
+            line-height: 1.6;
+        }
+
+        .step-detail code {
+            font-family: 'Menlo', 'Consolas', monospace;
+            font-size: 11px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            padding: 1px 5px;
+            border-radius: 3px;
+            color: var(--tx);
+        }
+
+        /* Notice */
+        .card-notice {
+            margin: 0 24px 20px;
+            padding: 10px 12px;
+            border-radius: 7px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .card-notice--warn {
+            background: #FFFBEB;
+            border: 1px solid #FDE68A;
+            color: #92400E;
+        }
+
+        .card-notice--info {
+            background: var(--accent-s);
+            border: 1px solid #BFDBFE;
+            color: #1E40AF;
+        }
+
+        .card-notice--muted {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--tx-m);
+        }
+
+        .notice-icon {
+            margin-right: 4px;
+        }
+
+        /* CSV schema pill */
+        .card-footer {
+            padding: 14px 24px;
+            border-top: 1px solid var(--border);
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .schema-label {
+            font-size: 11px;
+            color: var(--tx-s);
+        }
+
+        .schema-badge {
+            font-size: 11px;
+            font-weight: 700;
+            font-family: 'Menlo', monospace;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+
+        .schema-badge--ok {
+            background: var(--green-s);
+            color: var(--green);
+            border: 1px solid #BBF7D0;
+        }
+
+        .schema-badge--future {
+            background: var(--bg);
+            color: var(--tx-s);
+            border: 1px solid var(--border);
+        }
+
+        /* ── CSV Schema section ── */
+        .schema-section {
+            max-width: 1100px;
+            margin: 0 auto 80px;
+            padding: 0 40px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .section-sub {
+            font-size: 13px;
+            color: var(--tx-m);
+        }
+
+        .schema-table-wrap {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .schema-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .schema-table th {
+            background: var(--bg);
+            padding: 10px 16px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .06em;
+            color: var(--tx-s);
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .schema-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        .schema-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .schema-table tr:hover td {
+            background: var(--bg);
+        }
+
+        .col-num {
+            font-family: 'Menlo', monospace;
+            font-size: 12px;
+            color: var(--tx-s);
+            width: 40px;
+        }
+
+        .col-header {
+            font-weight: 600;
+        }
+
+        .col-key {
+            font-family: 'Menlo', monospace;
+            font-size: 12px;
+            color: var(--accent);
+        }
+
+        .col-desc {
+            color: var(--tx-m);
+        }
+
+        .col-support {
+            display: flex;
+            gap: 4px;
+            flex-wrap: nowrap;
+        }
+
+        .sup {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .sup--ok {
+            background: var(--green-s);
+            color: var(--green);
+            border: 1px solid #BBF7D0;
+        }
+
+        .sup--no {
+            background: #FEF2F2;
+            color: #B91C1C;
+            border: 1px solid #FECACA;
+        }
+
+        /* ── Footer ── */
+        .footer {
+            border-top: 1px solid var(--border);
+            padding: 24px 40px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--tx-s);
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero,
+            .grid,
+            .schema-section {
+                padding-left: 20px;
+                padding-right: 20px;
+            }
+
+            .header {
+                padding: 0 20px;
+            }
+
+            .hero-stats {
+                flex-wrap: wrap;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <span class="header-badge">HD事業部</span>
+            <span class="header-title">スクレイピングシステム</span>
+        </div>
+        <div class="header-right">社内限定ツール &nbsp;·&nbsp; Chrome拡張機能</div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-eyebrow">HD DIVISION TOOLS</div>
+        <h1 class="hero-title">飲食店データ取得システム</h1>
+        <p class="hero-sub">Googleマップ・食べログ・ホットペッパーから店舗リストを自動取得。すべてのツールで統一された19項目CSVに出力します。</p>
+        <div class="hero-stats">
+            <div class="stat">
+                <span class="stat-num">3</span>
+                <span class="stat-label">対応メディア</span>
+            </div>
+            <div class="stat">
+                <span class="stat-num">19</span>
+                <span class="stat-label">CSV出力項目</span>
+            </div>
+            <div class="stat">
+                <span class="stat-num">26</span>
+                <span class="stat-label">対応ジャンル</span>
+            </div>
+            <div class="stat">
+                <span class="stat-num">20+</span>
+                <span class="stat-label">対応都市</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tool Cards -->
+    <div class="grid">
+
+        <!-- Google Maps -->
+        <div class="card card--maps">
+            <div class="card-accent-bar"></div>
+            <div class="card-header">
+                <div class="card-icon-row">
+                    <div class="card-icon">🗺</div>
+                    <div>
+                        <div class="card-name">Google Maps Scraper</div>
+                        <div class="card-version">v3.1.0 &nbsp;·&nbsp; service-worker-v3.js</div>
+                    </div>
+                </div>
+                <p class="card-desc">Googleマップの検索結果から、エリア×ジャンルの組み合わせで全店舗を自動巡回。詳細パネルから電話・営業時間・HP有無まで取得します。</p>
+                <div class="tag-row">
+                    <span class="tag">全自動巡回</span>
+                    <span class="tag">エリア×ジャンル</span>
+                    <span class="tag">CSV / XLSX</span>
+                    <span class="tag">26ジャンル対応</span>
+                </div>
+            </div>
+
+            <div class="card-steps">
+                <div class="steps-label">使い方</div>
+                <div class="step">
+                    <div class="step-num">01</div>
+                    <div class="step-body">
+                        <div class="step-title">Googleマップを開く</div>
+                        <div class="step-detail"><code>google.co.jp/maps</code> を開いてください（タブはそのままで可）</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">02</div>
+                    <div class="step-body">
+                        <div class="step-title">エリアを入力して区を取得</div>
+                        <div class="step-detail">例：<code>さいたま市</code> と入力 →「区を取得」ボタンをクリック。対象の区を選択します</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">03</div>
+                    <div class="step-body">
+                        <div class="step-title">ジャンルを選択</div>
+                        <div class="step-detail">26ジャンルから取得したいものを選択（全選択も可）</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">04</div>
+                    <div class="step-body">
+                        <div class="step-title">最大件数を設定して開始</div>
+                        <div class="step-detail">スライダーで1コンボあたりの上限を設定し「▶ 開始」。エリア×ジャンルを自動で順番に巡回します</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">05</div>
+                    <div class="step-body">
+                        <div class="step-title">完了後にCSV / XLSXをダウンロード</div>
+                        <div class="step-detail">進捗バーが100%になったら「⬇ CSV」または「⬇ XLSX」でダウンロード</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-notice card-notice--warn">
+                <span class="notice-icon">⚠️</span>取得中はGoogleマップのタブを閉じないでください。別タブでの作業は問題ありません。
+            </div>
+
+            <div class="card-footer">
+                <span class="schema-label">CSV出力スキーマ</span>
+                <span class="schema-badge schema-badge--ok">✓ 19項目統一済み</span>
+            </div>
+        </div>
+
+        <!-- Tabelog / HotPepper -->
+        <div class="card card--tabelog">
+            <div class="card-accent-bar"></div>
+            <div class="card-header">
+                <div class="card-icon-row">
+                    <div class="card-icon">🍽</div>
+                    <div>
+                        <div class="card-name">食べログ / ホットペッパー</div>
+                        <div class="card-version">v2.0.0 &nbsp;·&nbsp; src/background.js</div>
+                    </div>
+                </div>
+                <p class="card-desc">食べログ・ホットペッパーの検索結果ページを起点に全ページを自動クロール。「人気ジャンル一括取得」で表示中のジャンルリンクをすべて連続取得できます。</p>
+                <div class="tag-row">
+                    <span class="tag">ページ自動送り</span>
+                    <span class="tag">ジャンル一括取得</span>
+                    <span class="tag">050番号除外</span>
+                    <span class="tag">CSV自動DL</span>
+                </div>
+            </div>
+
+            <div class="card-steps">
+                <div class="steps-label">使い方（通常取得）</div>
+                <div class="step">
+                    <div class="step-num">01</div>
+                    <div class="step-body">
+                        <div class="step-title">検索結果ページを開く</div>
+                        <div class="step-detail">食べログまたはホットペッパーで市区町村・ジャンルを絞った検索結果ページを表示する</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">02</div>
+                    <div class="step-body">
+                        <div class="step-title">最大件数を設定</div>
+                        <div class="step-detail">スライダーで上限を設定（500以上で「上限なし」）</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">03</div>
+                    <div class="step-body">
+                        <div class="step-title">「▶ 取得開始」をクリック</div>
+                        <div class="step-detail">ページを自動で送りながら全店舗の詳細ページを巡回します</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">04</div>
+                    <div class="step-body">
+                        <div class="step-title">完了時に自動でCSVがDL</div>
+                        <div class="step-detail">取得完了と同時にCSVが自動ダウンロードされます。手動でも「⬇ CSV」から再DL可能</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="steps-label"
+                style="padding: 0 24px 10px; font-size:10px; font-weight:700; letter-spacing:.1em; color:var(--tx-s); text-transform:uppercase;">
+                人気ジャンル一括取得</div>
+            <div style="padding: 0 24px 16px;">
+                <div class="step" style="border:none; padding-top:0;">
+                    <div class="step-num" style="color:var(--orange);">①</div>
+                    <div class="step-body">
+                        <div class="step-title" style="font-size:12px;">エリアのトップページを開く</div>
+                        <div class="step-detail">例：食べログの「さいたま市のレストラン」ページ。ジャンルリンクが左側に表示されている状態にする</div>
+                    </div>
+                </div>
+                <div class="step" style="border:none; padding-bottom:0;">
+                    <div class="step-num" style="color:var(--orange);">②</div>
+                    <div class="step-body">
+                        <div class="step-title" style="font-size:12px;">「🗂 人気ジャンル一括取得」をクリック</div>
+                        <div class="step-detail">検出したジャンルリンクを順番に自動取得。ジャンルごとにCSVが出力されます</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-notice card-notice--info">
+                <span class="notice-icon">ℹ️</span>電話番号は050予約専用番号を自動除外し、実店舗の固定電話を優先して取得します。
+            </div>
+
+            <div class="card-footer">
+                <span class="schema-label">CSV出力スキーマ</span>
+                <span class="schema-badge schema-badge--ok">✓ 19項目統一済み</span>
+            </div>
+        </div>
+
+        <!-- Future -->
+        <div class="card card--future">
+            <div class="card-accent-bar"></div>
+            <div class="card-header">
+                <div class="card-icon-row">
+                    <div class="card-icon">🔧</div>
+                    <div>
+                        <div class="card-name">拡張予定ツール</div>
+                        <div class="card-version">coming soon</div>
+                    </div>
+                </div>
+                <p class="card-desc">新しいメディア対応・データ統合機能など、HD事業部の業務拡大に合わせて順次追加予定です。</p>
+                <div class="tag-row">
+                    <span class="tag">検討中</span>
+                    <span class="tag">CSVマージ</span>
+                    <span class="tag">重複排除</span>
+                    <span class="tag">新媒体対応</span>
+                </div>
+            </div>
+
+            <div class="card-steps">
+                <div class="steps-label">追加候補</div>
+                <div class="step">
+                    <div class="step-num">—</div>
+                    <div class="step-body">
+                        <div class="step-title">CSVマージツール</div>
+                        <div class="step-detail">3媒体のCSVをアップロードして重複排除・統合DLできる機能</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">—</div>
+                    <div class="step-body">
+                        <div class="step-title">ぐるなび対応</div>
+                        <div class="step-detail">ぐるなびの検索結果からの店舗リスト取得</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">—</div>
+                    <div class="step-body">
+                        <div class="step-title">Medical DOC対応</div>
+                        <div class="step-detail">医療系クリニックのPRページからのリスト取得（既存拡張の移植）</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">—</div>
+                    <div class="step-body">
+                        <div class="step-title">スケジュール取得</div>
+                        <div class="step-detail">定期実行・スケジューリング対応</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-notice card-notice--muted">
+                <span class="notice-icon">💡</span>追加してほしい機能があれば担当エンジニアまでお知らせください。
+            </div>
+
+            <div class="card-footer">
+                <span class="schema-label">CSV出力スキーマ</span>
+                <span class="schema-badge schema-badge--future">— 未定</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- CSV Schema Table -->
+    <section class="schema-section">
+        <div class="section-header">
+            <h2 class="section-title">共通CSVスキーマ</h2>
+            <span class="section-sub">全ツール統一の19列定義</span>
+        </div>
+        <div class="schema-table-wrap">
+            <table class="schema-table">
+                <thead>
+                    <tr>
+                        <th class="col-num">#</th>
+                        <th>ヘッダー名</th>
+                        <th>キー名</th>
+                        <th>説明</th>
+                        <th>Googleマップ</th>
+                        <th>食べログ・HP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="col-num">01</td>
+                        <td class="col-header">店名</td>
+                        <td class="col-key">name</td>
+                        <td class="col-desc">店舗名</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">02</td>
+                        <td class="col-header">ジャンル</td>
+                        <td class="col-key">genre</td>
+                        <td class="col-desc">正規化後ジャンル</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">03</td>
+                        <td class="col-header">取得元ジャンル</td>
+                        <td class="col-key">sourceGenre</td>
+                        <td class="col-desc">サイト上のジャンル原文</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">04</td>
+                        <td class="col-header">都道府県</td>
+                        <td class="col-key">prefecture</td>
+                        <td class="col-desc">住所から自動分割</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">05</td>
+                        <td class="col-header">市区町村</td>
+                        <td class="col-key">city</td>
+                        <td class="col-desc">住所から自動分割</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">06</td>
+                        <td class="col-header">住所</td>
+                        <td class="col-key">address</td>
+                        <td class="col-desc">フル住所</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">07</td>
+                        <td class="col-header">電話番号</td>
+                        <td class="col-key">phone</td>
+                        <td class="col-desc">050除外・実店舗優先</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">08</td>
+                        <td class="col-header">定休日</td>
+                        <td class="col-key">regularHoliday</td>
+                        <td class="col-desc">曜日または「無休」</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">09</td>
+                        <td class="col-header">営業日</td>
+                        <td class="col-key">businessDays</td>
+                        <td class="col-desc">営業曜日</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">10</td>
+                        <td class="col-header">営業開始A</td>
+                        <td class="col-key">openTimeA</td>
+                        <td class="col-desc">ランチ等・1枠目開始</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">11</td>
+                        <td class="col-header">営業終了A</td>
+                        <td class="col-key">closeTimeA</td>
+                        <td class="col-desc">ランチ等・1枠目終了</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">12</td>
+                        <td class="col-header">営業開始B</td>
+                        <td class="col-key">openTimeB</td>
+                        <td class="col-desc">ディナー等・2枠目開始</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">13</td>
+                        <td class="col-header">営業終了B</td>
+                        <td class="col-key">closeTimeB</td>
+                        <td class="col-desc">ディナー等・2枠目終了</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">14</td>
+                        <td class="col-header">営業時間原文</td>
+                        <td class="col-key">rawHours</td>
+                        <td class="col-desc">取得元テキストそのまま</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">15</td>
+                        <td class="col-header">URL</td>
+                        <td class="col-key">url</td>
+                        <td class="col-desc">店舗詳細ページURL</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">16</td>
+                        <td class="col-header">HP有無</td>
+                        <td class="col-key">hasWebsite</td>
+                        <td class="col-desc">「有」or「無」</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">17</td>
+                        <td class="col-header">媒体</td>
+                        <td class="col-key">source</td>
+                        <td class="col-desc">GoogleMap / 食べログ / ホットペッパー</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">18</td>
+                        <td class="col-header">取得元URL</td>
+                        <td class="col-key">sourceUrl</td>
+                        <td class="col-desc">検索結果ページURL</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col-num">19</td>
+                        <td class="col-header">取得日時</td>
+                        <td class="col-key">scrapedAt</td>
+                        <td class="col-desc">ISO 8601形式</td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                        <td>
+                            <div class="col-support"><span class="sup sup--ok">✓</span></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <footer class="footer">
+        HD事業部 社内ツール &nbsp;·&nbsp; 取り扱い注意 &nbsp;·&nbsp; 外部共有禁止
+    </footer>
+
+</body>
+
+</html>
